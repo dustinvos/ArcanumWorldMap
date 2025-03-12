@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcanum Interactive Map</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+            background-color: #2a2a2a;
+            color: #e0d2b4;
+            overflow: hidden;
+        }
+        
+        /* Map container */
+        .map-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .map-image {
+            display: block;
+            max-width: 100%;
+            max-height: 100vh;
+            margin: 0 auto;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        /* City markers */
+        .city-marker {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23e0d2b4' stroke='%23703c00' stroke-width='1'%3E%3Cpath d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z'/%3E%3C/svg%3E");
+            background-size: contain;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            z-index: 10;
+            transition: transform 0.2s ease;
+        }
+        
+        .city-marker:hover {
+            transform: translate(-50%, -50%) scale(1.3);
+        }
+        
+        .city-label {
+            position: absolute;
+            transform: translate(-50%, calc(-100% - 10px));
+            background-color: rgba(0, 0, 0, 0.7);
+            color: #e0d2b4;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 20;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+        
+        .modal-content {
+            background-color: #33261a;
+            margin: 5% auto;
+            padding: 20px;
+            border: 2px solid #703c00;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+            color: #e0d2b4;
+        }
+        
+        .close {
+            color: #e0d2b4;
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: #ff9d00;
+        }
+        
+        .city-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .city-title {
+            font-size: 2.5rem;
+            border-bottom: 2px solid #703c00;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            color: #ff9d00;
+        }
+        
+        .city-symbol {
+            width: 50px;
+            height: 50px;
+            margin-right: 15px;
+        }
+        
+        .city-info {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+        
+        .city-description {
+            line-height: 1.6;
+        }
+        
+        .city-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            border: 1px solid #703c00;
+            margin-bottom: 15px;
+        }
+        
+        .info-section {
+            margin-bottom: 15px;
+        }
+        
+        .info-title {
+            font-weight: bold;
+            color: #ff9d00;
+            margin-bottom: 5px;
+        }
+        
+        .info-content {
+            line-height: 1.4;
+        }
+        
+        .deity-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .deity-card {
+            background-color: #2a2016;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #703c00;
+        }
+        
+        .temple-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+        
+        .title-bar {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(51, 38, 26, 0.9);
+            color: #e0d2b4;
+            padding: 8px 20px;
+            border-radius: 6px;
+            border: 1px solid #703c00;
+            z-index: 15;
+            font-size: 1.5rem;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .religion-modal {
+            display: none;
+            position: fixed;
+            z-index: 20;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+        
+        #religion-info {
+            background-color: #33261a;
+            margin: 5% auto;
+            padding: 20px;
+            border: 2px solid #703c00;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+        }
+        
+        .religion-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #703c00;
+            color: #e0d2b4;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 15;
+            font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+            font-size: 1rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+        
+        .religion-button:hover {
+            background-color: #8a4a00;
+        }
+        
+        .deity-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 20px;
+        }
+        
+        .deity-item {
+            background-color: #2a2016;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #703c00;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+            transition: transform 0.2s ease;
+        }
+        
+        .deity-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.7);
+        }
+        
+        .deity-item h3 {
+            color: #ff9d00;
+            margin-bottom: 10px;
+        }
+        
+        .deity-symbol {
+            display: block;
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 15px;
+            object-fit: cover;
+            border-radius: 5px;
+            border: 2px solid #703c00;
+        }
+        
+        /* Error message */
+        .map-error {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            background-color: rgba(0,0,0,0.7);
+            border-radius: 10px;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body>
+    <div class="title-bar">The World of Arcanum</div>
+    
+    <div class="map-container">
+        <img src="https://i.imgur.com/nE1cfpD.jpeg" alt="Map of Arcanum" class="map-image" onerror="this.onerror=null; this.src='https://i.imgur.com/nE1cfpD.jpg'; document.getElementById('map-error').style.display='none';">
+        <div id="map-error" class="map-error">
+            <h3>Map image could not be loaded</h3>
+            <p>Please check your internet connection or try a different browser.</p>
+        </div>
+        
+        <!-- City Markers with Exact Positions Preserved -->
+        <div class="city-marker" id="oronoco" style="top: 59.922%; left: 40.3178%;">
+            <div class="city-label">Oronoco</div>
+        </div>
+        
+        <div class="city-marker" id="tierney" style="top: 29.1556%; left: 70.3399%;">
+            <div class="city-label">Tierney</div>
+        </div>
+        
+        <div class="city-marker" id="navaz" style="top: 43.625%; left: 33.075%;">
+            <div class="city-label">Navaz</div>
+        </div>
+        
+        <div class="city-marker" id="yawata" style="top: 38.057%; left: 18.24%;">
+            <div class="city-label">Yawata</div>
+        </div>
+        
+        <div class="city-marker" id="amarna" style="top: 83.593%; left: 41.2669%;">
+            <div class="city-label">Amarna</div>
+        </div>
+        
+        <div class="city-marker" id="garolden" style="top: 36.5679%; left: 84.9188%;">
+            <div class="city-label">Garolden</div>
+        </div>
+        
+        <div class="city-marker" id="ravenmourne" style="top: 94.5104%; left: 66.558%;">
+            <div class="city-label">Ravenmourne</div>
+        </div>
+        
+        <div class="city-marker" id="snowfalls" style="top: 19.332%; left: 72.2843%;">
+            <div class="city-label">Snow Falls</div>
+        </div>
+        
+        <div class="city-marker" id="ironterra" style="top: 52.5981%; left: 62.408%;">
+            <div class="city-label">Iron Terra</div>
+        </div>
+    </div>
+    
+    <!-- Religion Button -->
+    <button class="religion-button" onclick="openReligionModal()">Religion of Arcanum</button>
+    
+    <!-- City Modals -->
+    <div id="oronocoModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('oronocoModal')">&times;</span>
+            <h2 class="city-title">Oronoco</h2>
+            <div class="city-info">
+                <div class="city-description">
+                    <div class="info-section">
+                        <div class="info-title">Location</div>
+                        <div class="info-content">Surrounded by lush rainforests and jungle. Three rivers flow around the city: Red River, Green River, and Oronoco River on the Grey Coast.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Climate</div>
+                        <div class="info-content">Hot and humid</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Population</div>
+                        <div class="info-content">Majority human, elf and half-elf population with a higher than average tiefling population.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Rule</div>
+                        <div class="info-content">Ruled by Queen Aphra (human)</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Exports</div>
+                        <div class="info-content">Exotic woods, gems, exotic hides</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Notable Locations</div>
+                        <div class="info-content">Grand Temple of Sulis (life), Oronoco Zoological Society, The Pitch Pits, numerous jungle ruins</div>
+                    </div>
+                </div>
+                <div>
+                    <img src="https://i.imgur.com/XliY2po.jpg" alt="Oronoco City" class="city-image">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="tierneyModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('tierneyModal')">&times;</span>
+            <h2 class="city-title">Tierney</h2>
+            <div class="city-info">
+                <div class="city-description">
+                    <div class="info-section">
+                        <div class="info-title">Location</div>
+                        <div class="info-content">Rolling hills and grassland in the northern portion of the continent. The Pale river flows through the city.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Climate</div>
+                        <div class="info-content">Cool and wet climate.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Population</div>
+                        <div class="info-content">Large halfling and gnome population.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Rule</div>
+                        <div class="info-content">Ruled by a 12-person council of halflings, gnomes, dwarves, humans, and elves.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Exports</div>
+                        <div class="info-content">Sapphires, cold ore, gnomish trinkets, beasts of burden</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Notable Locations</div>
+                        <div class="info-content">The Borrows Marketplace, Grande Temple of Reva (nature), Council Tower, Barrier Mountain Wall (defensive wall to prevent orc invasions) runs from Tierney to Snow Falls</div>
+                    </div>
+                </div>
+                <div>
+                    <img src="https://i.imgur.com/BfJoLIr.jpg" alt="Tierney City" class="city-image">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="navazModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('navazModal')">&times;</span>
+            <h2 class="city-title">Navaz</h2>
+            <div class="city-info">
+                <div class="city-description">
+                    <div class="info-section">
+                        <div class="info-title">Location</div>
+                        <div class="info-content">City on the Grand Plateau on the Grey Coast and Ash Channel and backs up to the Tusk Mountains.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Climate</div>
+                        <div class="info-content">Temperate climate</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Population</div>
+                        <div class="info-content">Large human and half-elf population</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Rule</div>
+                        <div class="info-content">Ruled by a council of wealthy shipping guilds led by the West Weld Shipping Company, Baron Tillerson (half-elf)</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Exports</div>
+                        <div class="info-content">Ships</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Notable Locations</div>
+                        <div class="info-content">Grand Temple of Revo (tempest), Navez Naval Yards, Great Lighthouse of Navez</div>
+                    </div>
+                </div>
+                <div>
+                    <img src="https://i.imgur.com/bv8POsk.jpg" alt="Navaz City" class="city-image">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="yawataModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('yawataModal')">&times;</span>
+            <h2 class="city-title">Yawata</h2>
+            <div class="city-info">
+                <div class="city-description">
+                    <div class="info-section">
+                        <div class="info-title">Location</div>
+                        <div class="info-content">Located on the Crotoan Island. Mountainous, cool and wet.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Climate</div>
+                        <div class="info-content">Cool and wet</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Population</div>
+                        <div class="info-content">Largest dragonborn population in all cities</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Rule</div>
+                        <div class="info-content">Ruled by the priests of Tenjin (knowledge) and the chief priestess Eraina (elf)</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Exports</div>
+                        <div class="info-content">Obsidian, books, mithril</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Notable Locations</div>
+                        <div class="info-content">Grand Temple of Tenjin, Great Library of Yawata, Mount Crotoa (volcano), Elite Panarii Temple (all gods), crossing bridges</div>
+                    </div>
+                </div>
+                <div>
+                    <img src="https://i.imgur.com/STQXfJw.jpg" alt="Yawata City" class="city-image">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="amarnaModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('amarnaModal')">&times;</span>
+            <h2 class="city-title">Amarna</h2>
+            <div class="city-info">
+                <div class="city-description">
+                    <div class="info-section">
+                        <div class="info-title">Location</div>
+                        <div class="info-content">Located on the Iteru River and the Lir Sea. Other than the floodplains of the Iteru and its delta, Amarna is surrounded by desert.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Climate</div>
+                        <div class="info-content">Hot and humid climate</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Population</div>
+                        <div class="info-content">Primarily human and elvish population</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Rule</div>
+                        <div class="info-content">Ruled by a line of hereditary kings, currently Pharaoh Akhenaten VI</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Exports</div>
+                        <div class="info-content">Gold, linen, silks, dyes</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Notable Locations</div>
+                        <div class="info-content">Grand Temple of Belenus (light), Hall of Kings, The Great Pyramid of Amarna, The Aten Stone, The Grand Bazaar</div>
+                    </div>
+                </div>
+                <div>
+                    <img src="https://i.imgur.com/IqUsrti.jpg" alt="Amarna City" class="city-image">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="garoldenModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('garoldenModal')">&times;</span>
+            <h2 class="city-title">Garolden</h2>
+            <div class="city-info">
+                <div class="city-description">
+                    <div class="info-section">
+                        <div class="info-title">Location</div>
+                        <div class="info-content">Located on the Harvest River and Sanguine Ocean. Surrounded by dense forests.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Climate</div>
+                        <div class="info-content">Temperate climate</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Population</div>
+                        <div class="info-content">All races are well represented in Garolden with a larger human population and very small dragonborn and tiefling population.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Rule</div>
+                        <div class="info-content">Garolden is a republic with each district of the city electing a member to the council. The council elects a chancellor to serve as executive leader, currently Chancellor Claudius (human).</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Districts</div>
+                        <div class="info-content">Military, religious, commerce, agricultural, upper class, middle class, and racial districts (except half-orc, half-elf, tiefling, and dragonborn)</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Exports</div>
+                        <div class="info-content">Weapons, armor, lumber</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Notable Locations</div>
+                        <div class="info-content">Grand Temple of Enki (trickery), Official Panarii Temple (all gods), Chancellor's Tower, Pentangle Market, The Bard's College</div>
+                    </div>
+                </div>
+                <div>
+                    <img src="https://i.imgur.com/LvAUjAE.jpg" alt="Garolden City" class="city-image">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="ravenmourneModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('ravenmourneModal')">&times;</span>
+            <h2 class="city-title">Ravenmourne</h2>
+            <div class="city-info">
+                <div class="city-description">
+                    <div class="info-section">
+                        <div class="info-title">Location</div>
+                        <div class="info-content">Southernmost city on the Claw Peninsula, On the Gold Sea surrounded by grassland plains.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Climate</div>
+                        <div class="info-content">Wet and temperate climate</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Population</div>
+                        <div class="info-content">Ravenmourne is the ancestral home of the elves and is primarily populated by elves, but other races live here in smaller numbers.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Rule</div>
+                        <div class="info-content">Ruled by a council of 9 elders (600+ years old required)</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Exports</div>
+                        <div class="info-content">Bows, art, literature, magic</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Notable Locations</div>
+                        <div class="info-content">Mages colleges, Felled Forest, almost every building is centuries old and filled with magic, Grand Temple of Morrighan (death)</div>
+                    </div>
+                </div>
+                <div>
+                    <img src="https://i.imgur.com/1mhO0zW.jpg" alt="Ravenmourne City" class="city-image">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="snowfallsModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('snowfallsModal')">&times;</span>
+            <h2 class="city-title">Snow Falls</h2>
+            <div class="city-info">
+                <div class="city-description">
+                    <div class="info-section">
+                        <div class="info-title">Location</div>
+                        <div class="info-content">Snow Falls is the northern most city of Arcanum on the Kelvin River and Kalt Ocean. It is a cold city located among the Barrier Mountains and features several waterfalls.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Climate</div>
+                        <div class="info-content">Cold</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Population</div>
+                        <div class="info-content">Snow Falls has a larger Halfling, gnome, and dwarven population and a significant drow population.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Rule</div>
+                        <div class="info-content">Ruled by a hierarchy count/countess at the head. Current ruled by Countess Sparklegem (gnome)</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Exports</div>
+                        <div class="info-content">Gnomish gadgets, Underdark ores and treasures, diamonds</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Notable Locations</div>
+                        <div class="info-content">Frozen Falls, Panarii Snow Temple (all gods), Barrier Mountain Wall, northern lights</div>
+                    </div>
+                </div>
+                <div>
+                    <img src="https://i.imgur.com/8n6orGX.jpg" alt="Snow Falls City" class="city-image">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="ironterraModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('ironterraModal')">&times;</span>
+            <h2 class="city-title">Iron Terra</h2>
+            <div class="city-info">
+                <div class="city-description">
+                    <div class="info-section">
+                        <div class="info-title">Location</div>
+                        <div class="info-content">Dwarven city in the Iron Mountains.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Climate</div>
+                        <div class="info-content">Cold above ground, warm below ground</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Population</div>
+                        <div class="info-content">Ancestral home to dwarves. Few races allowed to live with the dwarves underground. Non-dwarves mostly live in the above ground areas near Mile High Market.</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Rule</div>
+                        <div class="info-content">Ruled by council of 5 elders (all dwarves, 400 years old requirement)</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Exports</div>
+                        <div class="info-content">Stone, gems, ores, all things dwarven</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-title">Notable Locations</div>
+                        <div class="info-content">Dwarven Council, Grand Temple of Neto (war) Magmin's Labyrinth, Deep Roads, Molten Forge, Mile High Market</div>
+                    </div>
+                </div>
+                <div>
+                    <img src="https://i.imgur.com/eHh48qv.jpg" alt="Iron Terra City" class="city-image">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Religion Modal -->
+    <div id="religionModal" class="religion-modal">
+        <div id="religion-info" class="modal-content">
+            <span class="close" onclick="closeReligionModal()">&times;</span>
+            <h2 class="city-title">Religions of Arcanum</h2>
+            <p>Arcanum has a pantheon of 8 major gods and goddesses. Many minor gods are worshipped, but usually have only small, regional followers. The 8 Deities have temples all across the land, and one Grand Temple each.</p>
+            
+            <div class="deity-grid">
+                <div class="deity-item">
+                    <img src="https://i.imgur.com/NGED2Cw.jpg" class="deity-symbol" alt="Morrighan Symbol">
+                    <h3>Morrighan</h3>
+                    <p>Goddess of death</p>
+                    <p>Represented by 3 ravens</p>
+                    <p>Alignment: Neutral Evil</p>
+                    <p>Grand Temple: Ravenmourne</p>
+                </div>
+                
+                <div class="deity-item">
+                    <img src="https://i.imgur.com/EPuYPB0.jpg" class="deity-symbol" alt="Tenjin Symbol">
+                    <h3>Tenjin</h3>
+                    <p>God or goddess of knowledge</p>
+                    <p>Represented by a flowering tree</p>
+                    <p>Alignment: Lawful Evil, magic</p>
+                    <p>Grand Temple: Yawata</p>
+                </div>
+                
+                <div class="deity-item">
+                    <img src="https://i.imgur.com/BFJ0WvJ.jpg" class="deity-symbol" alt="Sulis Symbol">
+                    <h3>Sulis</h3>
+                    <p>Goddess of life</p>
+                    <p>Represented by 3 intersecting rings</p>
+                    <p>Alignment: Neutral Good</p>
+                    <p>Grand Temple: Oronoco</p>
+                </div>
+                
+                <div class="deity-item">
+                    <img src="https://i.imgur.com/0wSp32P.jpg" class="deity-symbol" alt="Belenus Symbol">
+                    <h3>Belenus</h3>
+                    <p>God of light</p>
+                    <p>Represented by the sun</p>
+                    <p>Alignment: Lawful Neutral, time</p>
+                    <p>Grand Temple: Amarna</p>
+                </div>
+                
+                <div class="deity-item">
+                    <img src="https://i.imgur.com/CphRf70.jpg" class="deity-symbol" alt="Reva Symbol">
+                    <h3>Reva</h3>
+                    <p>Goddess of nature</p>
+                    <p>Represented by 3 leaves</p>
+                    <p>Alignment: Chaotic Neutral</p>
+                    <p>Sister of Revo</p>
+                    <p>Grand Temple: Tierney</p>
+                </div>
+                
+                <div class="deity-item">
+                    <img src="https://i.imgur.com/iamVNiL.jpg" class="deity-symbol" alt="Revo Symbol">
+                    <h3>Revo</h3>
+                    <p>God of tempest</p>
+                    <p>Represented by an eye</p>
+                    <p>Alignment: Chaotic Evil, wealth</p>
+                    <p>Brother of Reva</p>
+                    <p>Grand Temple: Navaz</p>
+                </div>
+                
+                <div class="deity-item">
+                    <img src="https://i.imgur.com/DBgkYs3.jpg" class="deity-symbol" alt="Enki Symbol">
+                    <h3>Enki</h3>
+                    <p>God of trickery</p>
+                    <p>Represented by a crescent moon</p>
+                    <p>Alignment: Chaotic Good, thieves</p>
+                    <p>Grand Temple: Garolden</p>
+                </div>
+                
+                <div class="deity-item">
+                    <img src="https://i.imgur.com/ve72uPX.jpg" class="deity-symbol" alt="Neto Symbol">
+                    <h3>Neto</h3>
+                    <p>God of war</p>
+                    <p>Represented by a flaming anvil</p>
+                    <p>Alignment: Lawful Good, warriors</p>
+                    <p>Grand Temple: Iron Terra</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Basic Modal Functions
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = "block";
+        }
+        
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = "none";
+        }
+        
+        // Religion Modal Functions
+        function openReligionModal() {
+            document.getElementById("religionModal").style.display = "block";
+        }
+        
+        function closeReligionModal() {
+            document.getElementById("religionModal").style.display = "none";
+        }
+        
+        // Add click event listeners to city markers
+        document.getElementById("oronoco").addEventListener("click", function() {
+            openModal("oronocoModal");
+        });
+        
+        document.getElementById("tierney").addEventListener("click", function() {
+            openModal("tierneyModal");
+        });
+        
+        document.getElementById("navaz").addEventListener("click", function() {
+            openModal("navazModal");
+        });
+        
+        document.getElementById("yawata").addEventListener("click", function() {
+            openModal("yawataModal");
+        });
+        
+        document.getElementById("amarna").addEventListener("click", function() {
+            openModal("amarnaModal");
+        });
+        
+        document.getElementById("garolden").addEventListener("click", function() {
+            openModal("garoldenModal");
+        });
+        
+        document.getElementById("ravenmourne").addEventListener("click", function() {
+            openModal("ravenmourneModal");
+        });
+        
+        document.getElementById("snowfalls").addEventListener("click", function() {
+            openModal("snowfallsModal");
+        });
+        
+        document.getElementById("ironterra").addEventListener("click", function() {
+            openModal("ironterraModal");
+        });
+        
+        // Close modal when clicking outside of it
+        window.addEventListener("click", function(event) {
+            if (event.target.classList.contains("modal")) {
+                event.target.style.display = "none";
+            }
+            if (event.target.classList.contains("religion-modal")) {
+                event.target.style.display = "none";
+            }
+        });
+        
+        // Check if the map image has loaded successfully
+        window.onload = function() {
+            const mapImage = document.querySelector('.map-image');
+            
+            // Try to load the image again if it failed
+            if (mapImage.complete && mapImage.naturalHeight === 0) {
+                // Try an alternative source
+                mapImage.src = 'https://i.imgur.com/nE1cfpD.png';
+                
+                // If that also fails, try one more format
+                mapImage.onerror = function() {
+                    this.onerror = null;
+                    this.src = 'https://i.imgur.com/nE1cfpD.gif';
+                };
+            }
+        };
+    </script>
+</body>
+</html>
